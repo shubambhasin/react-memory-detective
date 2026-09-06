@@ -20,9 +20,15 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// @babel/core is an optional peer: needed only by the build plugin, never by
-// the runtime, and never installed for consumers who do not use it.
-const ALLOWED_PEERS = ["react", "@babel/core"];
+/*
+ * react is the only required peer. @babel/core and vite are optional: needed
+ * by the build plugin and the Vite entry respectively, never by the runtime,
+ * and never installed for consumers who use neither. Every addition here has to
+ * be deliberate — an accidental peer breaks installs, which is the whole reason
+ * this list is a fixed allowlist rather than a check of the manifest against
+ * itself.
+ */
+const ALLOWED_PEERS = ["react", "@babel/core", "vite"];
 const REQUIRED_FILES = [
   "package/package.json",
   "package/README.md",
@@ -113,6 +119,14 @@ try {
   const unexpected = peers.filter((p) => !ALLOWED_PEERS.includes(p));
   if (unexpected.length > 0) fail(`unexpected peerDependencies: ${unexpected.join(", ")}`);
   if (!peers.includes("react")) fail("react is missing from peerDependencies");
+
+  // An optional peer that is not marked optional is installed for everyone.
+  const meta = manifest.peerDependenciesMeta ?? {};
+  for (const peer of peers) {
+    if (peer !== "react" && meta[peer]?.optional !== true) {
+      fail(`peerDependency ${peer} must be marked optional in peerDependenciesMeta`);
+    }
+  }
 
   // 4. The tarball must match the tree it claims to come from.
   if (manifest.version !== local.version) {
