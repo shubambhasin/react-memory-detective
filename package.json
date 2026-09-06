@@ -1,0 +1,53 @@
+{
+  "name": "react-memory-detective",
+  "version": "0.0.0",
+  "description": "Find what your React components forgot to clean up — listeners, timers, sockets, observers and subscriptions that outlive the component that made them.",
+  "keywords": ["react", "memory", "leak", "debug", "devtools", "cleanup", "useEffect", "profiler"],
+  "license": "MIT",
+  "author": "shubambhasin",
+  "homepage": "https://shubambhasin.github.io/react-memory-detective/",
+  "repository": { "type": "git", "url": "git+https://github.com/shubambhasin/react-memory-detective.git" },
+  "bugs": { "url": "https://github.com/shubambhasin/react-memory-detective/issues" },
+  "type": "module",
+  "sideEffects": false,
+  "engines": { "node": ">=18" },
+  "files": ["dist", "README.md", "CHANGELOG.md", "LICENSE"],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "require": "./dist/index.cjs" },
+    "./core": { "types": "./dist/core.d.ts", "import": "./dist/core.js", "require": "./dist/core.cjs" },
+    "./overlay": { "types": "./dist/overlay.d.ts", "import": "./dist/overlay.js", "require": "./dist/overlay.cjs" },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "size": "npm run build && node scripts/size.mjs",
+    "verify": "node scripts/verify-package.mjs",
+    "changelog:check": "node scripts/changelog.mjs --check",
+    "changelog:html": "node scripts/changelog.mjs --html",
+    "release:watch": "node scripts/watch-release.mjs",
+    "ci:watch": "node scripts/watch-release.mjs HEAD ci.yml",
+    "version": "node scripts/changelog.mjs --start $npm_package_version && node scripts/sync-version.mjs && git add CHANGELOG.md README.md",
+    "prepublishOnly": "npm run build && node scripts/verify-package.mjs && node scripts/changelog.mjs --check"
+  },
+  "peerDependencies": { "react": ">=16.9.0" },
+  "devDependencies": {
+    "@testing-library/react": "^16.1.0",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "esbuild": "^0.25.0",
+    "jsdom": "^25.0.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "publishConfig": { "access": "public" }
+}
