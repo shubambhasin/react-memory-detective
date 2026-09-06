@@ -31,15 +31,5 @@ jobs:
       - name: Package contents
         run: npm pack --dry-run
 
-  benchmark:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm }
-      - run: npm ci
-      - run: npm run build
-      - run: node --expose-gc bench/run.mjs
-      # Fails if the documented fixes stop reducing renders — the claim the
-      # README makes has to keep being true.
-      - run: node bench/before-after.mjs
+  # A benchmark job goes here once bench/ exists. Referencing scripts that are
+  # not written yet would make CI red for no reason.

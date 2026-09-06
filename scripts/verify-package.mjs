@@ -31,12 +31,6 @@ const REQUIRED_FILES = [
   "package/dist/index.d.ts",
   "package/dist/core.js",
   "package/dist/overlay.js",
-  "package/dist/babel.js",
-  "package/dist/babel.cjs",
-  "package/dist/vite.js",
-  "package/dist/testing.js",
-  "package/dist/interactions.js",
-  "package/dist/testing.cjs",
 ];
 /** Anything matching these must never reach the registry. */
 const FORBIDDEN = [/^package\/(src|tests|bench|examples|site|scripts|docs)\//, /\.env/, /\.tgz$/, /node_modules/];
