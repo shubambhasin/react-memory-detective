@@ -12,7 +12,7 @@ afterEach(() => {
 });
 
 const setup = () => {
-  const registry = new ResourceRegistry({ maxRecords: 500 });
+  const registry = new ResourceRegistry(() => 500);
   return registry;
 };
 
@@ -138,7 +138,7 @@ describe("listener instrumentation", () => {
 
 describe("the registry does not become the leak", () => {
   it("stays bounded, and keeps active records in preference to released ones", () => {
-    const registry = new ResourceRegistry({ maxRecords: 100 });
+    const registry = new ResourceRegistry(() => 100);
     for (let i = 0; i < 1000; i++) {
       const record = registry.create({ type: "custom", label: `r${i}` });
       if (i % 2 === 0) registry.release(record.id);
@@ -149,7 +149,7 @@ describe("the registry does not become the leak", () => {
   });
 
   it("holds object handles weakly", () => {
-    const registry = new ResourceRegistry({ maxRecords: 10 });
+    const registry = new ResourceRegistry(() => 10);
     const socket = {};
     registry.create({ type: "websocket", label: "ws", handle: socket });
     // A WeakMap keyed on the handle: tracking a resource can never be the

@@ -5,6 +5,7 @@ import { now, ResourceRegistry } from "./registry.js";
 import { runInOwnerScope } from "./owner.js";
 import { instrumentListeners } from "../resources/listeners.js";
 import type { ListenerMismatch } from "../resources/listeners.js";
+import { instrumentConnections } from "../resources/connections.js";
 import { instrumentTimers } from "../resources/timers.js";
 import type {
   ComponentRef,
@@ -42,7 +43,7 @@ interface NameStats {
 
 export class Detective {
   config: DetectiveConfig = { ...defaultConfig };
-  readonly registry = new ResourceRegistry({ maxRecords: defaultConfig.maxRecords });
+  readonly registry = new ResourceRegistry(() => this.config.maxRecords);
   readonly memory = new MemoryProvider();
 
   private instances = new Map<string, InstanceRecord>();
@@ -67,6 +68,15 @@ export class Detective {
     if (this.config.track.listeners) {
       this.restore.push(instrumentListeners(this.registry, captureSource, (m) => this.onListenerMismatch(m)));
     }
+
+    const connectionEnabled = (type: string): boolean => {
+      if (type === "websocket" || type === "event-source" || type === "broadcast-channel") {
+        return this.config.track.sockets;
+      }
+      if (type === "worker") return this.config.track.workers;
+      return this.config.track.observers;
+    };
+    this.restore.push(instrumentConnections(this.registry, captureSource, connectionEnabled));
   }
 
   configure(options: DetectiveOptions = {}): void {
@@ -183,7 +193,7 @@ export class Detective {
 
   private emit(finding: Finding): void {
     this.findings.push(finding);
-    if (this.findings.length > this.config.maxRecords) this.findings.shift();
+    while (this.findings.length > this.config.maxRecords) this.findings.shift();
     this.config.onFinding?.(finding);
     for (const listener of this.listeners) {
       try {

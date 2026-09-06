@@ -21,3 +21,10 @@ First working core. Nothing is published yet.
 - **Ownership by scope**, not by proximity. A resource created inside a tracked scope is *owned*;
   one created while some component merely happened to be mounted has no owner, and the tool says so.
 - **Diagnostic engine**, pure and React-free, where confidence is earned by repetition.
+- **Connections, observers and workers** — WebSocket, EventSource, BroadcastChannel, Worker,
+  MutationObserver, ResizeObserver, IntersectionObserver. All seven share one shape (constructed,
+  released by a single method) and one implementation. A socket the *peer* closes is marked
+  self-resolved rather than blamed on the component, and `instanceof` keeps working so
+  instrumentation cannot change application behaviour.
+- **Self-leak test**, which immediately found a real bug: `maxRecords` was captured at construction,
+  so configuring it silently did nothing and the cap was always the default.

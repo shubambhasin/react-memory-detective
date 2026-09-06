@@ -1,7 +1,6 @@
 import { currentOwner } from "./owner.js";
 import type {
   ComponentRef,
-  DetectiveConfig,
   ResourceRecord,
   ResourceStatus,
   ResourceType,
@@ -45,7 +44,14 @@ export class ResourceRegistry {
    */
   private byNumericHandle = new Map<string, string>();
 
-  constructor(private config: Pick<DetectiveConfig, "maxRecords">) {}
+  /**
+   * The cap is read through a function, not captured at construction.
+   *
+   * It was a snapshot, and `configure({ maxRecords })` silently did nothing —
+   * the registry kept whatever the default had been when it was built. The
+   * self-leak test caught it, which is the entire reason that test exists.
+   */
+  constructor(private getMaxRecords: () => number) {}
 
   create(input: CreateResourceInput): ResourceRecord {
     const owner = input.owner ?? currentOwner();
@@ -141,9 +147,10 @@ export class ResourceRegistry {
    * evidence.
    */
   private evictIfNeeded(): void {
-    if (this.order.length <= this.config.maxRecords) return;
+    const cap = this.getMaxRecords();
+    if (this.order.length <= cap) return;
 
-    const surplus = this.order.length - this.config.maxRecords;
+    const surplus = this.order.length - cap;
     let removed = 0;
     const keep: string[] = [];
 
@@ -158,7 +165,7 @@ export class ResourceRegistry {
     }
 
     // Still over the cap because everything is active: drop the oldest anyway.
-    while (keep.length > this.config.maxRecords) {
+    while (keep.length > cap) {
       const id = keep.shift();
       if (id) this.records.delete(id);
     }

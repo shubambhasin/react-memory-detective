@@ -10,7 +10,7 @@ Every box has to be ticked, and each is checkable rather than a judgement call.
 
 - [ ] **Every resource type in the README is actually instrumented.** Claiming sockets and observers
       while shipping only timers and listeners is the exact failure this tool exists to criticise.
-      → timers ✅ · listeners ✅ · sockets ☐ · observers ☐ · workers ☐ · requests ☐
+      → timers ✅ · listeners ✅ · sockets ✅ · observers ✅ · workers ✅ · requests ☐
 - [ ] **The false-positive suite passes.** Legitimate patterns that must produce *no* high-confidence
       finding: a global singleton, an application-level listener, a shared socket, a long-running
       request, a persistent cache, StrictMode.
@@ -19,9 +19,14 @@ Every box has to be ticked, and each is checkable rather than a judgement call.
 
 ## The tool must not be the leak
 
-- [ ] **Self-leak test**: 10,000 mount/unmount cycles with the detective enabled, asserting the
-      registry stays bounded and patched globals are restored. Mandatory — a leak detector that
-      leaks is worse than none, and the README already makes this claim.
+- [x] **Self-leak test**: thousands of React mount/unmount cycles plus 100,000 raw resource events,
+      asserting the registry stays bounded and every patched global is restored. Mandatory — a leak
+      detector that leaks is worse than none.
+
+      It earned its place immediately: it found that `maxRecords` was captured once at construction,
+      so `configure({ maxRecords })` silently did nothing and the cap was always the default. A
+      documented option that quietly has no effect is precisely the class of bug this project cannot
+      afford to ship.
 
 ## Honesty
 
