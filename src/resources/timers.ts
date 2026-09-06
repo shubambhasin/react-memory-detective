@@ -22,6 +22,14 @@ interface TimerGlobals {
  */
 export function instrumentTimers(registry: ResourceRegistry, shouldCaptureSource: () => boolean): () => void {
   const target = globalThis as unknown as TimerGlobals;
+  /*
+   * Every call to an original goes through `.call(target, …)`.
+   *
+   * `window.setTimeout` requires `this === window`; invoking the saved
+   * reference bare gives `this === undefined` under a module's strict mode and
+   * the browser throws "Illegal invocation". jsdom is lenient about it, so this
+   * passed every test and broke on the first real page load.
+   */
   const original: Partial<TimerGlobals> = {
     setTimeout: target.setTimeout,
     clearTimeout: target.clearTimeout,
@@ -50,18 +58,23 @@ export function instrumentTimers(registry: ResourceRegistry, shouldCaptureSource
             return (handler as (...a: unknown[]) => unknown)(...callArgs);
           }
         : handler;
-    const id = original.setTimeout!(wrapped as TimerHandler, timeout, ...args) as unknown as number;
+    const id = (original.setTimeout as (...a: unknown[]) => unknown).call(
+      target,
+      wrapped as TimerHandler,
+      timeout,
+      ...args,
+    ) as number;
     track("timeout", `setTimeout(${timeout ?? 0}ms)`, id);
     return id;
   }) as typeof setTimeout;
 
   target.clearTimeout = ((handle?: unknown) => {
     if (handle !== undefined) registry.releaseByNumericHandle("timeout", handle);
-    return original.clearTimeout!(handle as number);
+    return original.clearTimeout!.call(target, handle as number);
   }) as typeof clearTimeout;
 
   target.setInterval = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
-    const id = original.setInterval!(handler, timeout, ...args) as unknown as number;
+    const id = (original.setInterval as (...a: unknown[]) => unknown).call(target, handler, timeout, ...args) as number;
     // Never self-resolves: it runs until someone clears it.
     track("interval", `setInterval(${timeout ?? 0}ms)`, id);
     return id;
@@ -69,12 +82,12 @@ export function instrumentTimers(registry: ResourceRegistry, shouldCaptureSource
 
   target.clearInterval = ((handle?: unknown) => {
     if (handle !== undefined) registry.releaseByNumericHandle("interval", handle);
-    return original.clearInterval!(handle as number);
+    return original.clearInterval!.call(target, handle as number);
   }) as typeof clearInterval;
 
   if (original.requestAnimationFrame && original.cancelAnimationFrame) {
     target.requestAnimationFrame = ((callback: FrameRequestCallback) => {
-      const id = original.requestAnimationFrame!((time) => {
+      const id = original.requestAnimationFrame!.call(target, (time: number) => {
         registry.releaseByNumericHandle("animation-frame", id, "self-resolved");
         return callback(time);
       });
@@ -84,7 +97,7 @@ export function instrumentTimers(registry: ResourceRegistry, shouldCaptureSource
 
     target.cancelAnimationFrame = ((handle: number) => {
       registry.releaseByNumericHandle("animation-frame", handle);
-      return original.cancelAnimationFrame!(handle);
+      return original.cancelAnimationFrame!.call(target, handle);
     }) as typeof cancelAnimationFrame;
   }
 

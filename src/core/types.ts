@@ -110,6 +110,9 @@ export interface Finding {
   confidence: Confidence;
   severity: "info" | "warning" | "high" | "critical";
   observedAt: number;
+  /** How many times this same problem has been observed. */
+  occurrences?: number;
+  firstObservedAt?: number;
 }
 
 export interface MemorySample {

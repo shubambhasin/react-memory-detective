@@ -29,7 +29,14 @@ jobs:
       - name: Bundle size budgets
         run: node scripts/size.mjs
       - name: Package contents
-        run: npm pack --dry-run
+        run: node scripts/verify-package.mjs --allow-dirty
+
+      # Proves the tarball *loads* in a project that is not this one: ESM, CJS,
+      # both subpath entries, and a type-check under two module resolutions.
+      # Run once — it installs a whole toolchain and does not vary by React major.
+      - name: Clean-install smoke test
+        if: matrix.react == '19'
+        run: node scripts/smoke-install.mjs
 
   # A benchmark job goes here once bench/ exists. Referencing scripts that are
   # not written yet would make CI red for no reason.

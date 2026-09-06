@@ -20,7 +20,9 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const ALLOWED_PEERS = ["react"];
+// @babel/core is an optional peer: needed only by the build plugin, never by
+// the runtime, and never installed for consumers who do not use it.
+const ALLOWED_PEERS = ["react", "@babel/core"];
 const REQUIRED_FILES = [
   "package/package.json",
   "package/README.md",
@@ -31,6 +33,11 @@ const REQUIRED_FILES = [
   "package/dist/index.d.ts",
   "package/dist/core.js",
   "package/dist/overlay.js",
+  "package/dist/babel.js",
+  "package/dist/babel.cjs",
+  "package/dist/babel.d.ts",
+  "package/dist/vite.js",
+  "package/dist/vite.d.ts",
 ];
 /** Anything matching these must never reach the registry. */
 const FORBIDDEN = [/^package\/(src|tests|bench|examples|site|scripts|docs)\//, /\.env/, /\.tgz$/, /node_modules/];
@@ -127,8 +134,22 @@ try {
 
   // 6. A build that cannot be loaded is worse than no build.
   const cjs = execFileSync("tar", ["-xzOf", tarball, "package/dist/index.cjs"], { encoding: "utf8" });
-  for (const name of ["init", "trackResource", "getMemoryReport"]) {
+  for (const name of ["init", "trackResource", "getMemoryReport", "ownEffect"]) {
     if (!cjs.includes(name)) fail(`the built CJS bundle does not export ${name}`);
+  }
+
+  // 7. The compiler must stay in the build. A runtime entry that reaches
+  // @babel/core would ship it to every user of the app.
+  for (const entry of ["index", "core", "overlay"]) {
+    for (const ext of ["js", "cjs"]) {
+      let code = "";
+      try {
+        code = execFileSync("tar", ["-xzOf", tarball, `package/dist/${entry}.${ext}`], { encoding: "utf8" });
+      } catch {
+        continue;
+      }
+      if (/@babel\/core/.test(code)) fail(`dist/${entry}.${ext} references @babel/core; build-time code must not ship to the browser`);
+    }
   }
 
   if (failures.length === 0) {

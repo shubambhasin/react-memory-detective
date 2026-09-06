@@ -24,7 +24,10 @@ const baselinePath = join(root, ".size-baseline.json");
  *   total   everything, i.e. the full developer experience
  */
 const BUDGETS = {
-  core: 6 * 1024,
+  // `core` is the model and the diagnosis only — no globals patched, no React.
+  // The instrumentation is what `index` adds on top, which is why they are
+  // budgeted apart: the spec's separation is a useful discipline, not cosmetic.
+  core: 4 * 1024,
   index: 12 * 1024,
   overlay: 30 * 1024,
   total: 40 * 1024,
@@ -35,7 +38,7 @@ const BUDGETS = {
  * reported but not budgeted. What *is* enforced is that they never leak into a
  * runtime entry — see the contamination check below.
  */
-const BUILD_TIME_ENTRIES = [];
+const BUILD_TIME_ENTRIES = ["babel", "vite"];
 
 function bytesFor(entry) {
   // An entry's real cost is its own chunk plus the shared chunks it imports.

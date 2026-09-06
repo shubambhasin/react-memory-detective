@@ -6,6 +6,7 @@ import { runInOwnerScope } from "./owner.js";
 import { instrumentListeners } from "../resources/listeners.js";
 import type { ListenerMismatch } from "../resources/listeners.js";
 import { instrumentConnections } from "../resources/connections.js";
+import { instrumentRequests } from "../resources/requests.js";
 import { instrumentTimers } from "../resources/timers.js";
 import type {
   ComponentRef,
@@ -48,7 +49,12 @@ export class Detective {
 
   private instances = new Map<string, InstanceRecord>();
   private stats = new Map<string, NameStats>();
-  private findings: Finding[] = [];
+  /**
+   * Keyed by problem, not by observation. Ten mount/unmount cycles of one
+   * leaky interval are one finding seen ten times, not ten findings — a list
+   * that grows with every cycle is unreadable exactly when it matters most.
+   */
+  private findings = new Map<string, Finding>();
   private listeners = new Set<(finding: Finding) => void>();
   private restore: Array<() => void> = [];
   private mismatchCounts = new Map<string, number>();
@@ -77,6 +83,7 @@ export class Detective {
       return this.config.track.observers;
     };
     this.restore.push(instrumentConnections(this.registry, captureSource, connectionEnabled));
+    if (this.config.track.requests) this.restore.push(instrumentRequests(this.registry, captureSource));
   }
 
   configure(options: DetectiveOptions = {}): void {
@@ -192,8 +199,25 @@ export class Detective {
   }
 
   private emit(finding: Finding): void {
-    this.findings.push(finding);
-    while (this.findings.length > this.config.maxRecords) this.findings.shift();
+    const key = findingKey(finding);
+    const previous = this.findings.get(key);
+    if (previous) {
+      // Keep the newest evidence, and carry the count forward. Deleting first
+      // re-inserts at the end, so the list stays ordered by last seen.
+      finding.occurrences = (previous.occurrences ?? 1) + 1;
+      finding.firstObservedAt = previous.firstObservedAt ?? previous.observedAt;
+      finding.id = previous.id;
+      this.findings.delete(key);
+    } else {
+      finding.occurrences = 1;
+      finding.firstObservedAt = finding.observedAt;
+    }
+    this.findings.set(key, finding);
+    while (this.findings.size > this.config.maxRecords) {
+      const oldest = this.findings.keys().next().value;
+      if (oldest === undefined) break;
+      this.findings.delete(oldest);
+    }
     this.config.onFinding?.(finding);
     for (const listener of this.listeners) {
       try {
@@ -213,7 +237,7 @@ export class Detective {
   // ----------------------------------------------------------------- query
 
   getFindings(): Finding[] {
-    return [...this.findings];
+    return suppressExplained([...this.findings.values()]);
   }
 
   getReport(): MemoryReport {
@@ -248,7 +272,7 @@ export class Detective {
 
   clear(): void {
     this.registry.clear();
-    this.findings.length = 0;
+    this.findings.clear();
     this.stats.clear();
     this.mismatchCounts.clear();
   }
@@ -269,4 +293,53 @@ export function getDetective(): Detective {
   const g = globalThis as Global;
   if (!g[KEY]) g[KEY] = new Detective();
   return g[KEY] as Detective;
+}
+
+/**
+ * Identifies the *problem*, not the observation: the same uncleared interval in
+ * the same component at the same source line is one problem however many times
+ * it is seen.
+ */
+function findingKey(finding: Finding): string {
+  const owner = finding.component?.name ?? "unattributed";
+  const shape = finding.resources
+    .map((r) => `${r.type}@${r.source ? `${r.source.file}:${r.source.line}` : r.label}`)
+    .sort()
+    .join(",");
+  return `${finding.kind}|${owner}|${shape}`;
+}
+
+/**
+ * A mismatched removeEventListener also shows up as a retained listener. Both
+ * are true, but they are one bug, and the mismatch is the finding that names
+ * the cause and the fix — so the retention finding is dropped rather than
+ * reported alongside it.
+ */
+function suppressExplained(findings: Finding[]): Finding[] {
+  const explained = new Set<string>();
+  /*
+   * Retention that has already repeated is the same problem as the first
+   * suspicion of it, only better evidenced. Reporting both would show the same
+   * leak twice and invite the reader to trust the weaker of the two.
+   */
+  const superseded = new Set<string>();
+  for (const finding of findings) {
+    if (finding.kind === "listener-mismatch") explained.add(finding.component?.name ?? "unattributed");
+    if (finding.kind === "repeated-retention") superseded.add(shapeKey(finding));
+  }
+  findings = findings.filter((f) => f.kind !== "outlived-owner" || !superseded.has(shapeKey(f)));
+  if (explained.size === 0) return findings;
+  return findings.filter((finding) => {
+    if (finding.kind === "listener-mismatch") return true;
+    const owner = finding.component?.name ?? "unattributed";
+    if (!explained.has(owner)) return true;
+    // Only when *every* resource in it is a listener: an interval leaked by
+    // the same component is a separate bug and must still be reported.
+    return !finding.resources.every((r) => r.type === "event-listener");
+  });
+}
+
+/** Owner plus the set of resources involved, ignoring which diagnosis produced it. */
+function shapeKey(finding: Finding): string {
+  return findingKey(finding).split("|").slice(1).join("|");
 }

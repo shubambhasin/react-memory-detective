@@ -30,7 +30,11 @@ export class MemoryProvider {
       const memory = (performance as unknown as { memory?: LegacyMemory }).memory;
       if (memory) return { at: Date.now(), usedBytes: memory.usedJSHeapSize, source: this.source };
     }
-    return { at: Date.now(), source: this.source === "performance.memory" ? "unavailable" : this.source };
+    /*
+     * No bytes means nothing was measured, whatever API was detected. Naming a
+     * source here would suggest a figure exists and was merely omitted.
+     */
+    return { at: Date.now(), source: "unavailable" };
   }
 
   /** The accurate path, where the page is cross-origin isolated. */

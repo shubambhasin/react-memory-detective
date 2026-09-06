@@ -24,8 +24,8 @@ Confidence:  high
 Next step:   Return a cleanup from the effect that calls socket.close(), for the resource created at src/ChatPanel.tsx:47:12.
 ```
 
-> **Status: pre-release, deliberately.** The core is built and tested; nothing is published, and the
-> version is `0.0.0` so it cannot go out by accident. [What has to be true first.](docs/RELEASE-CRITERIA.md)
+> **Status: first release.** Dev-time only, no runtime dependencies, and it refuses to run in a
+> production build. [What had to be true first.](docs/RELEASE-CRITERIA.md)
 
 ---
 
@@ -84,15 +84,49 @@ inferred, or impossible, and it was written before any of it was built.
 ## Install
 
 ```bash
-npm install react-memory-detective
+npm install --save-dev react-memory-detective
 ```
+
+### 1. Add the build plugin
+
+This is the step that makes the tool useful on code you have not already instrumented. Effects run
+after render, so a socket opened inside a plain `useEffect` arrives with no way to tell which
+component opened it. The plugin runs the effect body inside its component's scope, and everything
+created in there is attributed automatically.
+
+```ts
+// vite.config.ts
+import { memoryDetective } from "react-memory-detective/vite";
+
+export default defineConfig({
+  plugins: [memoryDetective(), react()],
+});
+```
+
+```js
+// babel.config.js — Next.js, CRA, Metro, Webpack
+module.exports = {
+  plugins: [process.env.NODE_ENV !== "production" && "react-memory-detective/babel"].filter(Boolean),
+};
+```
+
+The plugin only touches components — functions whose name is capitalised and which return JSX. It
+skips `node_modules`, does nothing when `NODE_ENV` is `production`, and adds no runtime dependency:
+the compiler stays in your build, never in the bundle.
+
+### 2. Initialise
 
 ```tsx
 import { init } from "react-memory-detective";
 if (process.env.NODE_ENV !== "production") init();
 ```
 
-Track a component and the resources it owns:
+That is the whole setup. Mount and unmount a screen a few times and findings appear in the console.
+
+### Without the plugin
+
+If you would rather not add a build step, declare ownership by hand. This is also the right tool for
+a resource created outside an effect:
 
 ```tsx
 import { useMemoryTracking, useTrackedResource } from "react-memory-detective";
@@ -109,9 +143,21 @@ function ChatPanel() {
 }
 ```
 
-`cleanup` is a required argument, so forgetting it is a type error rather than a silent leak.
+`cleanup` is a required argument, so forgetting it is a type error rather than a silent leak. The
+plugin recognises a component that already calls `useMemoryTracking` and reuses it, so the two
+approaches mix freely and nothing is counted twice.
 
-Timers and listeners are instrumented globally, so they are caught with no code changes at all.
+Timers and listeners are instrumented globally either way, so a mismatched `removeEventListener` is
+caught with no setup at all — it just cannot be blamed on a component without the plugin.
+
+## One problem is one finding
+
+Ten mount/unmount cycles of one leaky interval are one finding seen ten times, not ten findings. A
+report that grows with every cycle is unreadable exactly when it matters, so findings are keyed by
+component, resource type and source location, and carry an `occurrences` count. When repetition
+proves a leak the earlier low-confidence suspicion is dropped rather than listed beside it, and a
+retained listener that a mismatch already explains is reported once — as the mismatch, which is the
+finding that names the fix.
 
 ## Design commitments
 

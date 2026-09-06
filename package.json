@@ -1,24 +1,67 @@
 {
   "name": "react-memory-detective",
-  "version": "0.0.0",
-  "description": "Find what your React components forgot to clean up — listeners, timers, sockets, observers and subscriptions that outlive the component that made them.",
-  "keywords": ["react", "memory", "leak", "debug", "devtools", "cleanup", "useEffect", "profiler"],
+  "version": "0.1.0",
+  "description": "Find what your React components forgot to clean up \u2014 listeners, timers, sockets, observers and subscriptions that outlive the component that made them.",
+  "keywords": [
+    "react",
+    "memory",
+    "leak",
+    "debug",
+    "devtools",
+    "cleanup",
+    "useEffect",
+    "profiler"
+  ],
   "license": "MIT",
   "author": "shubambhasin",
   "homepage": "https://shubambhasin.github.io/react-memory-detective/",
-  "repository": { "type": "git", "url": "git+https://github.com/shubambhasin/react-memory-detective.git" },
-  "bugs": { "url": "https://github.com/shubambhasin/react-memory-detective/issues" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shubambhasin/react-memory-detective.git"
+  },
+  "bugs": {
+    "url": "https://github.com/shubambhasin/react-memory-detective/issues"
+  },
   "type": "module",
   "sideEffects": false,
-  "engines": { "node": ">=18" },
-  "files": ["dist", "README.md", "CHANGELOG.md", "LICENSE"],
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "require": "./dist/index.cjs" },
-    "./core": { "types": "./dist/core.d.ts", "import": "./dist/core.js", "require": "./dist/core.cjs" },
-    "./overlay": { "types": "./dist/overlay.d.ts", "import": "./dist/overlay.js", "require": "./dist/overlay.cjs" },
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./core": {
+      "types": "./dist/core.d.ts",
+      "import": "./dist/core.js",
+      "require": "./dist/core.cjs"
+    },
+    "./overlay": {
+      "types": "./dist/overlay.d.ts",
+      "import": "./dist/overlay.js",
+      "require": "./dist/overlay.cjs"
+    },
+    "./babel": {
+      "types": "./dist/babel.d.ts",
+      "import": "./dist/babel.js",
+      "require": "./dist/babel.cjs"
+    },
+    "./vite": {
+      "types": "./dist/vite.d.ts",
+      "import": "./dist/vite.js",
+      "require": "./dist/vite.cjs"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -33,11 +76,17 @@
     "release:watch": "node scripts/watch-release.mjs",
     "ci:watch": "node scripts/watch-release.mjs HEAD ci.yml",
     "version": "node scripts/changelog.mjs --start $npm_package_version && node scripts/sync-version.mjs && git add CHANGELOG.md README.md",
-    "prepublishOnly": "npm run build && node scripts/verify-package.mjs && node scripts/changelog.mjs --check"
+    "prepublishOnly": "npm run build && node scripts/verify-package.mjs && node scripts/smoke-install.mjs && node scripts/changelog.mjs --check",
+    "smoke": "node scripts/smoke-install.mjs"
   },
-  "peerDependencies": { "react": ">=16.9.0" },
+  "peerDependencies": {
+    "react": ">=16.9.0",
+    "@babel/core": "^7.0.0 || ^8.0.0"
+  },
   "devDependencies": {
+    "@babel/core": "^8.0.1",
     "@testing-library/react": "^16.1.0",
+    "@types/babel__core": "^7.20.5",
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
@@ -49,5 +98,12 @@
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
   },
-  "publishConfig": { "access": "public" }
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependenciesMeta": {
+    "@babel/core": {
+      "optional": true
+    }
+  }
 }

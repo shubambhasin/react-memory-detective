@@ -118,5 +118,6 @@ export function printReport(): void {
 const format = (bytes?: number): string => (bytes === undefined ? "—" : `${(bytes / 1024 / 1024).toFixed(1)} MB`);
 
 export { useMemoryTracking, useTrackedResource } from "./react/track.js";
+export { ownEffect } from "./react/own.js";
 export type { TrackedResourceSpec } from "./react/track.js";
 export type * from "./core/types.js";
