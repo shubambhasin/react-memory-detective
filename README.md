@@ -24,7 +24,8 @@ Confidence:  high
 Next step:   Return a cleanup from the effect that calls socket.close(), for the resource created at src/ChatPanel.tsx:47:12.
 ```
 
-> **Status: pre-release.** The core is built and tested; nothing is published yet.
+> **Status: pre-release, deliberately.** The core is built and tested; nothing is published, and the
+> version is `0.0.0` so it cannot go out by accident. [What has to be true first.](docs/RELEASE-CRITERIA.md)
 
 ---
 
