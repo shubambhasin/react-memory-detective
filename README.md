@@ -1,5 +1,10 @@
 # React Memory Detective
 
+[![npm](https://img.shields.io/npm/v/react-memory-detective?color=%230b7285)](https://www.npmjs.com/package/react-memory-detective)
+[![bundle](https://img.shields.io/badge/runtime-9.4%20KB%20gzip-0b7285)](docs/GUIDE.md)
+[![dependencies](https://img.shields.io/badge/dependencies-0-0b7285)](https://www.npmjs.com/package/react-memory-detective?activeTab=dependencies)
+[![license](https://img.shields.io/npm/l/react-memory-detective?color=%230b7285)](LICENSE)
+
 **Find what your React components forgot to clean up.**
 
 Not:
@@ -24,8 +29,13 @@ Confidence:  high
 Next step:   Return a cleanup from the effect that calls socket.close(), for the resource created at src/ChatPanel.tsx:47:12.
 ```
 
-> **Status: first release.** Dev-time only, no runtime dependencies, and it refuses to run in a
-> production build. [What had to be true first.](docs/RELEASE-CRITERIA.md)
+```bash
+npm install --save-dev react-memory-detective
+```
+
+> **Status: 0.1.0, published with provenance.** Dev-time only, zero runtime dependencies, and it
+> refuses to run in a production build. Released from CI on a tag, never from a laptop.
+> [Every box that had to be ticked first.](docs/RELEASE-CRITERIA.md)
 
 ---
 
@@ -63,6 +73,35 @@ return () => window.removeEventListener("resize", () => handler());
 removes nothing at all. Both references pass through the instrumentation, so this is reported as
 fact, not suspicion — and the wrong-capture-flag variant is caught separately, because it needs a
 different fix.
+
+## What it found in a real application
+
+Before release it was pointed at [Excalidraw](https://github.com/excalidraw/excalidraw) — 218
+component files, 111 effect call sites, 229 live resources at rest — with a leak planted in one real
+component. Twelve mount/unmount cycles later, two findings and nothing else:
+
+```text
+▲ ColorPickerComponent unmounted, but 2 × interval, 2 × event-listener created by it are still active.
+
+Component:   ColorPickerComponent
+Confidence:  high
+  • ColorPickerComponent unmounted, and 4 resources created by it are still active more than 1500ms later.
+  • Still active: 2 × interval, 2 × event-listener.
+  •   setInterval(1000ms) — created at packages/excalidraw/components/ColorPicker/ColorPicker.tsx:275:5
+  •   resize on window   — created at packages/excalidraw/components/ColorPicker/ColorPicker.tsx:279:12
+  • Every one of 12 mount/unmount cycles left resources behind. That is a pattern, not a race.
+  • Garbage collection cannot be observed from a page, so this is retention evidence, not proof of a leak.
+```
+
+Remove the planted leak and it goes silent again: twelve more cycles, zero findings. Both halves
+matter — quiet on correct code, and still accurate inside 229 resources of real-application noise.
+*(Absolute monorepo paths shortened above for width.)*
+
+That exercise also found five defects in this package that a green test suite and a perfect fixture
+app had both missed, the worst of which was a mismatch finding that blamed the first listener
+registered for an event rather than the one actually stranded. The fixture app had exactly one
+listener per event, so it was always right; real applications have several.
+[The full list is in the changelog.](CHANGELOG.md)
 
 ## Honest about memory
 
@@ -179,6 +218,31 @@ finding that names the fix.
   `setInterval` would bury the findings that matter.
 - **Nothing leaves the browser.** No telemetry, no network, no storage — which matters more here
   than usual, because memory debugging touches tokens and user data.
+- **Fixtures agree with their author.** Every claim above was checked against a real application,
+  because five of the bugs fixed before release were invisible to a green suite and a fixture app
+  that behaved perfectly. Running it against real code is a release criterion, not an intention.
+
+## Known limitations
+
+Written down rather than discovered by you:
+
+- **Effects inside custom hooks are not attributed.** If your codebase keeps effects in
+  `useInterval`-style utilities, those resources are tracked but no component is blamed. Closing
+  this needs the owner captured during render rather than during the effect — a design change, not
+  a patch.
+- **Class components are not attributed.** `componentDidMount` is outside the plugin's reach.
+- **A resource is not proof of a leak.** Retention is what is observable from a page; collection is
+  not. Every finding says so.
+- **Memory figures are supporting evidence, never the finding.** On Firefox and Safari there are
+  none at all, and the diagnosis is unaffected.
+
+## Documentation
+
+- [Guide](docs/GUIDE.md) — setup, what is detected, reading a finding, troubleshooting
+- [API](docs/API.md) — every export, both plugins, and the types
+- [Feasibility report](docs/FEASIBILITY.md) — written before any code; what is reliable, inferred, or impossible
+- [Release criteria](docs/RELEASE-CRITERIA.md) — what had to be true before publishing
+- [Changelog](CHANGELOG.md)
 
 ## Licence
 

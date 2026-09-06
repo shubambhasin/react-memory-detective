@@ -17,8 +17,11 @@ const { version } = JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
 
 /** Each target names the pattern that carries a version, so a miss is loud. */
 const targets = [
-  { file: "README.md", pattern: /> \*\*Status: \d+\.\d+\.\d+, early release\.\*\*/, replace: `> **Status: ${version}, early release.**` },
-
+  {
+    file: "README.md",
+    pattern: /> \*\*Status: \d+\.\d+\.\d+, published with provenance\.\*\*/,
+    replace: `> **Status: ${version}, published with provenance.**`,
+  },
 ];
 
 let failed = false;
