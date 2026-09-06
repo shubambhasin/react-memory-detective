@@ -4,8 +4,7 @@ The version sat at `0.0.0` until every box below was ticked, so it could not be 
 accident or to have something on npm. A tool whose entire value is *not overclaiming* is worth less
 than nothing if it ships before it can back its claims.
 
-**Status at 0.1.0: all boxes ticked but one, which is recorded rather than quietly dropped —
-see "Contact with reality".**
+**Status at 0.1.0: every box ticked.**
 
 ## Correctness
 
@@ -54,12 +53,21 @@ see "Contact with reality".**
 
 ## Contact with reality
 
-- [ ] **Run against a real application, not only fixtures. Still outstanding at 0.1.0.** The only
-      large React application on hand is a work repository that is off-limits to this project, and
-      adding a build plugin to it means editing its config. It is left unticked rather than
-      reasoned away: on the sibling project every single round of real contact found bugs a green
-      suite had missed — four from a browser, four from one afternoon in a production codebase.
-      Fixtures agree with their author. This is the reason 0.1.0 is a preview.
+- [x] **Run against a real application, not only fixtures.** Excalidraw: 218 component files, 111
+      effect call sites, 229 live resources at rest. It found five defects that a green suite and a
+      perfect fixture app had both missed — a mismatch finding that blamed the first listener
+      registered for an event rather than the one actually stranded, StrictMode splitting one bug
+      into two findings, `memo`/`forwardRef` components skipped entirely, a Vite plugin that could
+      not be added to a type-checked config and returned a malformed source map, and dev-server
+      paths that made every source line unreadable.
+
+      Then, with those fixed: twelve real mount/unmount cycles produced **no** findings, a leak
+      planted in a real component was found and attributed with exact source lines, and removing
+      the plant returned it to silence. Both halves matter — quiet on correct code, and still
+      accurate inside 229 resources of real-application noise.
+
+      Fixtures agree with their author. This is the fifth consecutive time contact with real code
+      has proved that, across two projects.
 - [x] Verified in a real browser, not only jsdom. jsdom's `window` differs from a browser's in ways
       that caused three bugs here: a prototype patch that missed `window`'s own `addEventListener`,
       timer globals called without their receiver ("Illegal invocation", which broke the entire

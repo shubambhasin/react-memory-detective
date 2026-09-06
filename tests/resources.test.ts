@@ -157,3 +157,19 @@ describe("the registry does not become the leak", () => {
     expect(registry.releaseByHandle(socket)?.status).toBe("released");
   });
 });
+
+describe("source locations are readable", () => {
+  it("strips dev-server noise that made real paths unreadable", async () => {
+    const { shorten } = await import("../src/resources/source.js");
+    // Shapes taken from a real Vite dev server in a monorepo, where the raw
+    // frame read `/@fs/private/tmp/.../ColorPicker.tsx` — a full line of noise.
+    expect(shorten("http://localhost:3000/src/ChatPanel.tsx")).toBe("src/ChatPanel.tsx");
+    expect(shorten("http://localhost:3000/src/ChatPanel.tsx?t=1712345")).toBe("src/ChatPanel.tsx");
+    expect(shorten("http://localhost:5191/@fs/Users/me/repo/packages/ui/Button.tsx")).toBe(
+      "/Users/me/repo/packages/ui/Button.tsx",
+    );
+    // Two references to one file must not look like two files.
+    expect(shorten("http://x/src/a.tsx?import")).toBe(shorten("http://x/src/a.tsx"));
+    expect(shorten("/plain/path.tsx")).toBe("plain/path.tsx");
+  });
+});

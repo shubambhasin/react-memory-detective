@@ -80,8 +80,9 @@
     "smoke": "node scripts/smoke-install.mjs"
   },
   "peerDependencies": {
+    "@babel/core": "^7.0.0 || ^8.0.0",
     "react": ">=16.9.0",
-    "@babel/core": "^7.0.0 || ^8.0.0"
+    "vite": ">=4"
   },
   "devDependencies": {
     "@babel/core": "^8.0.1",
@@ -96,6 +97,7 @@
     "react-dom": "^19.0.0",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2",
+    "vite": "^6.4.3",
     "vitest": "^2.1.8"
   },
   "publishConfig": {
@@ -103,6 +105,9 @@
   },
   "peerDependenciesMeta": {
     "@babel/core": {
+      "optional": true
+    },
+    "vite": {
       "optional": true
     }
   }

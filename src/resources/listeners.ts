@@ -1,5 +1,6 @@
 import type { ResourceRegistry } from "../core/registry.js";
 import { captureSource } from "./source.js";
+import { currentOwner } from "../core/owner.js";
 import type { ComponentRef, SourceLocation } from "../core/types.js";
 
 export interface ListenerMismatch {
@@ -146,10 +147,20 @@ export function instrumentListeners(
        */
       const otherList = byKey?.get(`${type}|${!capture}`);
       const captureMismatch = otherList?.some((r) => r.listener === listener) === true;
-      const stranded = captureMismatch ? otherList?.find((r) => r.listener === listener) : list?.[0];
-      if (!stranded) return;
+      /*
+       * A removal that matches nothing anywhere is not a mismatch: removing a
+       * listener that was never added is a harmless no-op, and common in
+       * defensive cleanup code. Only a removal with something left stranded is
+       * worth reporting.
+       */
+      if (!captureMismatch && (list?.length ?? 0) === 0) return;
 
-      const record = registry.get(stranded.recordId);
+      const stranded = captureMismatch
+        ? otherList?.find((r) => r.listener === listener)
+        : strandedByReference(list, registry);
+
+      // The mismatch is a fact either way. Only the attribution may be unknown.
+      const record = stranded ? registry.get(stranded.recordId) : undefined;
       onMismatch({
         target: describeTarget(this),
         event: type,
@@ -175,6 +186,44 @@ export function instrumentListeners(
       entry.target.removeEventListener = entry.remove;
     }
   };
+}
+
+/**
+ * Which listener did this failed removal mean to remove?
+ *
+ * A capture-flag mismatch answers itself: the same function reference is
+ * registered under the other flag. A *reference* mismatch does not, and the
+ * first candidate in the list is not an answer — it is whichever listener
+ * happened to be registered first, which in a real application is usually
+ * somebody else's. Blaming it produces a confident finding pointing at the
+ * wrong component, which is worse than no finding at all.
+ *
+ * So: prefer the listener owned by the component currently cleaning up, fall
+ * back to the only candidate when there is exactly one, and otherwise report
+ * the mismatch with no source and no owner. The mismatch itself is still a
+ * fact worth stating; the attribution is not.
+ */
+function strandedByReference(
+  list: Registration[] | undefined,
+  registry: ResourceRegistry,
+): Registration | undefined {
+  if (!list || list.length === 0) return undefined;
+
+  const owner = currentOwner();
+  if (owner) {
+    const mine = list.filter((entry) => registry.get(entry.recordId)?.owner?.instanceId === owner.instanceId);
+    /*
+     * Every candidate here belongs to the same component instance, so the
+     * attribution is certain even when there are several — StrictMode's
+     * double-invoke produces exactly that, and reporting the second
+     * registration as "unattributed" split one bug across two findings. The
+     * reported source line is the first of them, which is the same call site
+     * unless a component registers two different handlers for one event.
+     */
+    if (mine.length > 0) return mine[0];
+  }
+
+  return list.length === 1 ? list[0] : undefined;
 }
 
 function describeTarget(target: EventTarget): string {

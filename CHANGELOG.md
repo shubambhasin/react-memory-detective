@@ -64,6 +64,29 @@ stays quiet about everything else.
 
 ### Fixed
 
+Five of the entries below came from one afternoon pointing this at Excalidraw — a real
+application — after the test suite was green and the fixture app was perfect. That is the whole
+argument for the exercise, and it is now a release criterion rather than a good intention.
+
+- **The listener mismatch blamed the wrong component.** When `removeEventListener` matched nothing,
+  the stranded listener was assumed to be the first one registered for that event — which in the
+  fixture app was always the right one, because it was the only one. In a real application several
+  listeners share an event, so the finding pointed confidently at a stranger's listener. Attribution
+  now comes from the owner scope of the component actually cleaning up (effect *cleanups* are scoped
+  for this reason), and when it genuinely cannot be determined the mismatch is still reported as a
+  fact with no component named. Guessing was the one thing this tool is not allowed to do.
+- **StrictMode split one bug into two findings**, one of them unattributed, because a component's
+  two registrations for the same event looked ambiguous. They belong to the same component, so the
+  attribution is certain.
+- **`memo()` and `forwardRef()` components were skipped entirely** — 14% of all effect call sites in
+  Excalidraw, and a component in seven silently unattributed looks exactly like a tool that found
+  nothing. Coverage measured on that codebase went from 77% to 89%.
+- **The Vite plugin did not type-check inside a real config**, and the source map it returned was
+  genuinely malformed: Babel allows `file: null` and readonly arrays where Rollup does not, so the
+  map is now rebuilt rather than passed through. Any project that type-checks its `vite.config.ts` —
+  Excalidraw does — could not add the plugin at all.
+- **Dev-server paths made findings unreadable.** Vite serves monorepo files under `/@fs/` and adds a
+  `?t=` cache-busting query, so one file appeared as two and each source line was a paragraph.
 - **"Illegal invocation" in a real browser.** Patched timer globals were called without their
   receiver; jsdom tolerates this and Chrome does not, so the whole fixture app failed to start while
   every test stayed green. This is the second project where only real-browser contact caught a class

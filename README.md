@@ -150,6 +150,11 @@ approaches mix freely and nothing is counted twice.
 Timers and listeners are instrumented globally either way, so a mismatched `removeEventListener` is
 caught with no setup at all — it just cannot be blamed on a component without the plugin.
 
+The plugin covers plain function components and `memo` / `forwardRef` wrappers — 89% of effect call
+sites in Excalidraw, measured. Effects inside **custom hooks** and **class components** are not
+attributed; their resources are still tracked, but no component is blamed.
+[The full table is in the guide.](docs/GUIDE.md)
+
 ## One problem is one finding
 
 Ten mount/unmount cycles of one leaky interval are one finding seen ten times, not ten findings. A

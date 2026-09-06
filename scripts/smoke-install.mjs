@@ -75,6 +75,31 @@ try {
     run("node", ["subpaths.mjs"]);
   });
 
+  /*
+   * The most common consumer: installs the package, uses the runtime, and has
+   * neither Vite nor Babel. Their type-check must not require either — the
+   * shipped types once pulled in @babel/core and broke exactly this case, so
+   * it is asserted before any optional peer is installed.
+   */
+  step("main entry type-checks with no optional peers installed", () => {
+    mkdirSync(join(dir, "ts"), { recursive: true });
+    writeFileSync(join(dir, "tsconfig.json"), JSON.stringify({
+      compilerOptions: {
+        strict: true, noEmit: true, target: "ES2022", module: "ESNext",
+        moduleResolution: "bundler", jsx: "react-jsx", skipLibCheck: false,
+      },
+      include: ["ts/use.ts"],
+    }, null, 2));
+    writeFileSync(join(dir, "ts", "use.ts"), `
+      import { init, getFindings, ownEffect, type Finding } from "react-memory-detective";
+      init({ enabled: true, mode: "silent" });
+      const first: Finding | undefined = getFindings()[0];
+      export const confidence = first?.confidence;
+      export const wrapped = ownEffect(undefined, () => {});
+    `);
+    run("npx", ["tsc", "-p", "tsconfig.json"]);
+  });
+
   step("the build plugin actually transforms a component", () => {
     writeFileSync(join(dir, "plugin.mjs"), `
       const { transformSync } = await import("@babel/core");
@@ -92,25 +117,24 @@ try {
     run("node", ["plugin.mjs"]);
   });
 
-  step("TypeScript resolves the shipped types under bundler resolution", () => {
-    mkdirSync(join(dir, "ts"), { recursive: true });
-    writeFileSync(join(dir, "tsconfig.json"), JSON.stringify({
+  step("the Vite entry type-checks once Vite is present", () => {
+    // Only a Vite user imports this entry, and they have Vite by definition.
+    // @types/node comes with it: Vite's own declarations reference Buffer.
+    run("npm", ["install", "--no-audit", "--no-fund", "--silent", "vite@6", "@types/node@22"]);
+    writeFileSync(join(dir, "tsconfig.vite.json"), JSON.stringify({
       compilerOptions: {
         strict: true, noEmit: true, target: "ES2022", module: "ESNext",
         moduleResolution: "bundler", jsx: "react-jsx", skipLibCheck: false,
       },
       include: ["ts"],
     }, null, 2));
-    writeFileSync(join(dir, "ts", "use.ts"), `
-      import { init, getFindings, type Finding } from "react-memory-detective";
+    writeFileSync(join(dir, "ts", "plugin.ts"), `
       import { memoryDetective } from "react-memory-detective/vite";
-      // Exactly how a consumer calls it: a partial config, no imports of internals.
-      init({ enabled: true, mode: "silent" });
-      const first: Finding | undefined = getFindings()[0];
-      export const confidence = first?.confidence;
-      export const plugin = memoryDetective({ enabled: true });
+      import { defineConfig } from "vite";
+      // Exactly how a consumer uses it, in a config that is itself type-checked.
+      export default defineConfig({ plugins: [memoryDetective({ enabled: true })] });
     `);
-    run("npx", ["tsc", "-p", "tsconfig.json"]);
+    run("npx", ["tsc", "-p", "tsconfig.vite.json"]);
   });
 
   step("node16 resolution, which is stricter about exports maps", () => {

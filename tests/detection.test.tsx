@@ -222,3 +222,66 @@ describe("nothing the tool says is an overclaim", () => {
     }
   });
 });
+
+/**
+ * The case a fixture app cannot produce: several components, and library code,
+ * all listening to the same event on the same target. Blaming the first
+ * registration is a confident finding pointing at the wrong component.
+ */
+describe("attribution when many listeners share one event", () => {
+  it("blames the component that actually stranded the listener, not the first registrant", async () => {
+    setup();
+    // A bystander registers first, exactly as application or library code does.
+    const bystander = () => {};
+    window.addEventListener("resize", bystander);
+    restores.push(() => window.removeEventListener("resize", bystander));
+
+    function Culprit() {
+      const self = useMemoryTracking("Culprit");
+      useEffect(ownEffect(self, () => {
+        const handler = () => {};
+        window.addEventListener("resize", handler);
+        return () => window.removeEventListener("resize", () => handler());
+      }), []);
+      return <div />;
+    }
+    await cycle(<Culprit />, 2);
+
+    const mismatches = getFindings().filter((f) => f.kind === "listener-mismatch");
+    expect(mismatches.length).toBeGreaterThan(0);
+    for (const finding of mismatches) {
+      expect(finding.component?.name ?? "Culprit").toBe("Culprit");
+    }
+  });
+
+  it("states the mismatch but names no component when it genuinely cannot tell", async () => {
+    setup();
+    // Two unowned listeners on one event; the removal matches neither.
+    const first = () => {};
+    const second = () => {};
+    window.addEventListener("scroll", first);
+    window.addEventListener("scroll", second);
+    restores.push(() => {
+      window.removeEventListener("scroll", first);
+      window.removeEventListener("scroll", second);
+    });
+    window.removeEventListener("scroll", () => {});
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    const mismatches = getFindings().filter((f) => f.kind === "listener-mismatch");
+    expect(mismatches.length).toBeGreaterThan(0);
+    // The fact is stated; the blame is not invented.
+    expect(mismatches[0]?.component).toBeUndefined();
+  });
+
+  it("says nothing when a removal matches no listener at all", async () => {
+    setup();
+    window.removeEventListener("pointerdown", () => {});
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(getFindings().filter((f) => f.kind === "listener-mismatch")).toHaveLength(0);
+  });
+});

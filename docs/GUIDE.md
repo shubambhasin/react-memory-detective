@@ -82,6 +82,28 @@ function ChatPanel({ url }) {
 | `removeEventListener` called with a different capture flag | **fact**, and a different fix |
 | the same retention repeating across mount/unmount cycles | high confidence |
 
+## What the plugin covers
+
+Measured against Excalidraw — a real application, 218 component files, 111 effect call sites — the
+plugin instruments **89%** of them:
+
+| where the effect lives | covered |
+| --- | --- |
+| a plain function component | yes |
+| `memo(...)`, `forwardRef(...)`, `memo(forwardRef(...))` | yes |
+| a custom hook (`useSomething`) | **no** |
+| a class component's `componentDidMount` | **no** |
+| a component built by some other higher-order function | **no** |
+
+An effect the plugin does not reach still has its resources *tracked* — timers, listeners, sockets
+and observers are instrumented globally — but they have no owner, so they are never blamed on a
+component. Wrap those effects with `ownEffect(self, …)` by hand, or track the resource with
+`useTrackedResource`.
+
+Custom hooks are the gap worth knowing about: if your codebase keeps its effects in
+`useInterval`-style utilities, most of your resources will be unattributed. Closing that needs the
+owner to be captured during render rather than during the effect, and it is not in this release.
+
 ## What it cannot detect
 
 Read [FEASIBILITY.md](FEASIBILITY.md) for the full classification. In short:

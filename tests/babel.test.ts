@@ -85,3 +85,31 @@ describe("the build plugin", () => {
     expect(twice.match(/ownEffect/g)?.length).toBe(once.match(/ownEffect/g)?.length);
   });
 });
+
+/**
+ * Measured against Excalidraw, these wrappers are 14% of all effect call sites.
+ * A component in seven going unattributed is indistinguishable, to a user, from
+ * the tool being broken.
+ */
+describe("wrapped components", () => {
+  const cases: Array<[string, string]> = [
+    ["memo with a named function", `const Widget = memo(function Widget() { useEffect(() => {}, []); return <div />; });`],
+    ["memo with an arrow", `const Widget = memo(() => { useEffect(() => {}, []); return <div />; });`],
+    ["forwardRef", `const Widget = forwardRef((props, ref) => { useEffect(() => {}, []); return <div ref={ref} />; });`],
+    ["memo(forwardRef(...))", `const Widget = memo(forwardRef((props, ref) => { useEffect(() => {}, []); return <div />; }));`],
+    ["React.memo member call", `const Widget = React.memo(() => { useEffect(() => {}, []); return <div />; });`],
+  ];
+
+  for (const [label, code] of cases) {
+    it(`attributes a component declared with ${label}`, () => {
+      const out = transform(code);
+      expect(out).toContain('useMemoryTracking("Widget")');
+      expect(out).toContain("ownEffect");
+    });
+  }
+
+  it("still ignores a non-component wrapped in the same way", () => {
+    const out = transform(`const helper = memo(() => { useEffect(() => {}, []); return 1; });`);
+    expect(out).not.toContain("useMemoryTracking");
+  });
+});
