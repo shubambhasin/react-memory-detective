@@ -11,9 +11,16 @@ Every box has to be ticked, and each is checkable rather than a judgement call.
 - [ ] **Every resource type in the README is actually instrumented.** Claiming sockets and observers
       while shipping only timers and listeners is the exact failure this tool exists to criticise.
       → timers ✅ · listeners ✅ · sockets ✅ · observers ✅ · workers ✅ · requests ☐
-- [ ] **The false-positive suite passes.** Legitimate patterns that must produce *no* high-confidence
-      finding: a global singleton, an application-level listener, a shared socket, a long-running
-      request, a persistent cache, StrictMode.
+- [x] **The false-positive suite passes.** Ten legitimate patterns that must produce no
+      high-confidence finding: an application-level singleton, a global listener, a release that
+      lands just after unmount, a component that cleans up on every one of thirty cycles, a fired
+      timeout, a timeout still pending at unmount, StrictMode, a tidy neighbour unmounting alongside
+      a leaky one, and a single observation staying at low confidence until it repeats.
+
+      **The suite was mutation-tested rather than trusted.** Forcing every finding to high confidence
+      was caught. Removing the self-resolving exclusion was *not* — the timeout test waited long
+      enough for the timer to fire, so it never exercised the branch it existed to protect. A
+      pending-timeout case was added, and the mutation is now caught.
 - [ ] **The detection suite passes**, one fixture per supported resource, each with a known answer.
 - [ ] **Ownership is never guessed.** A resource created outside a tracked scope reports no owner.
 

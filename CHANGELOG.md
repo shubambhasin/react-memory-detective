@@ -26,5 +26,10 @@ First working core. Nothing is published yet.
   released by a single method) and one implementation. A socket the *peer* closes is marked
   self-resolved rather than blamed on the component, and `instanceof` keeps working so
   instrumentation cannot change application behaviour.
+- **False-positive suite** — ten legitimate patterns that a naive detector reports as leaks, each
+  of which must stay quiet. It was mutation-tested rather than trusted: one deliberate break was
+  caught, a second was not, and the test that should have caught it turned out to wait long enough
+  for the timer to fire and so never reached the branch it protected. Fixed, and the mutation is now
+  caught.
 - **Self-leak test**, which immediately found a real bug: `maxRecords` was captured at construction,
   so configuring it silently did nothing and the cap was always the default.
