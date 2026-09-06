@@ -202,7 +202,7 @@ function renderPage(all) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Changelog — React Render Detective</title>
-<meta name="description" content="Every release of react-render-detective, what changed and why.">
+<meta name="description" content="Every release of ${pkg.name}, what changed and why.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔍</text></svg>">
 <style>
   :root {
@@ -242,14 +242,14 @@ function renderPage(all) {
 <body>
 <header>
   <div class="wrap">
-    <div class="eyebrow">react-render-detective</div>
+    <div class="eyebrow">${pkg.name}</div>
     <h1>Changelog</h1>
     <p class="lede">Every release, what changed and why — including the mistakes, because the reasoning is
     the part worth reading when you are deciding whether to upgrade.</p>
     <nav>
       <a href="./">Overview</a>
-      <a href="https://github.com/shubambhasin/react-render-detective">GitHub</a>
-      <a href="https://www.npmjs.com/package/react-render-detective">npm</a>
+      <a href="https://github.com/shubambhasin/${pkg.name}">GitHub</a>
+      <a href="https://www.npmjs.com/package/${pkg.name}">npm</a>
     </nav>
   </div>
 </header>
@@ -257,7 +257,7 @@ function renderPage(all) {
 ${entries}
 </main>
 <footer>
-  <div class="wrap">Generated from <a href="https://github.com/shubambhasin/react-render-detective/blob/main/CHANGELOG.md">CHANGELOG.md</a> at deploy time.</div>
+  <div class="wrap">Generated from <a href="https://github.com/shubambhasin/${pkg.name}/blob/main/CHANGELOG.md">CHANGELOG.md</a> at deploy time.</div>
 </footer>
 </body>
 </html>

@@ -83,15 +83,18 @@ jobs:
         # and that is actually wrong fails the run.
         run: |
           VERSION="$(node -p 'require("./package.json").version')"
+          # Read the name rather than hardcoding it: this workflow was copied
+          # from a sibling project and verified the wrong package for a while.
+          NAME="$(node -p 'require("./package.json").name')"
           for attempt in 1 2 3 4 5 6; do
-            if DEPS="$(npm view "react-render-detective@$VERSION" dependencies --json --prefer-online 2>/dev/null)"; then
+            if DEPS="$(npm view "$NAME@$VERSION" dependencies --json --prefer-online 2>/dev/null)"; then
               echo "published dependencies: ${DEPS:-<none>}"
               if [ -n "$DEPS" ] && [ "$DEPS" != "{}" ] && [ "$DEPS" != "undefined" ]; then
                 echo "::error::Published $VERSION declares runtime dependencies. Deprecate it immediately:"
-                echo "::error::npm deprecate react-render-detective@$VERSION \"Broken metadata, use a later version.\""
+                echo "::error::npm deprecate $NAME@$VERSION \"Broken metadata, use a later version.\""
                 exit 1
               fi
-              echo "react-render-detective@$VERSION published with no runtime dependencies."
+              echo "$NAME@$VERSION published with no runtime dependencies."
               exit 0
             fi
             echo "Registry has not served $VERSION yet (attempt $attempt); waiting."
@@ -99,7 +102,7 @@ jobs:
           done
           echo "::warning::Could not read $VERSION from the registry to verify it. The package was"
           echo "::warning::verified before publishing, so this is most likely propagation delay."
-          echo "::warning::Confirm with: npm view react-render-detective@$VERSION dependencies --prefer-online"
+          echo "::warning::Confirm with: npm view $NAME@$VERSION dependencies --prefer-online"
 
       - name: GitHub release
         env:
@@ -107,8 +110,9 @@ jobs:
         run: |
           TAG="${{ github.event.inputs.tag || github.ref_name }}"
           VERSION="${TAG#v}"
+          NAME="$(node -p 'require("./package.json").name')"
           # Pull this version's section out of the changelog for the release body.
           awk -v v="## $VERSION" '$0 ~ "^"v"$" {f=1; next} f && /^## / {exit} f' CHANGELOG.md > /tmp/notes.md
           echo "" >> /tmp/notes.md
-          echo "Install: \`npm install react-render-detective@$VERSION\`" >> /tmp/notes.md
+          echo "Install: \`npm install $NAME@$VERSION\`" >> /tmp/notes.md
           gh release create "$TAG" --title "$TAG" --notes-file /tmp/notes.md --verify-tag
