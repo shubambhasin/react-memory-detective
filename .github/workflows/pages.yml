@@ -1,0 +1,66 @@
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - "CHANGELOG.md"
+      - "scripts/changelog.mjs"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+
+      # Rendered at deploy time so the published page can never drift from
+      # CHANGELOG.md, which is the file that actually gets edited.
+      - run: node scripts/changelog.mjs --html
+
+      # The site quotes the version and the bundle size. If either drifts from
+      # what the package actually says, the page is lying to a reader who is
+      # deciding whether to install it — so fail the deploy rather than ship it.
+      - name: Site must agree with the package
+        run: |
+          VERSION="$(node -p 'require("./package.json").version')"
+          if ! grep -q "v$VERSION" site/index.html; then
+            echo "::error::site/index.html does not mention v$VERSION"
+            exit 1
+          fi
+          # The footer links to the sibling project on purpose, so a bare grep
+          # would fail on a deliberate cross-link. What must never happen is the
+          # sibling's name in a page title or an install command — the
+          # copied-wholesale mistake this repo has already made twice.
+          if grep -E "<title>.*react-render-detective" site/*.html; then
+            echo "::error::a page title names the sibling project"
+            exit 1
+          fi
+          if grep -E "npm (install|i) [^<]*react-render-detective" site/*.html; then
+            echo "::error::an install command names the sibling project"
+            exit 1
+          fi
+          echo "site agrees with package.json ($VERSION)"
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4

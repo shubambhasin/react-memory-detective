@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Changelog — React Memory Detective</title>
+<meta name="description" content="Every release of react-memory-detective, what changed and why.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧹</text></svg>">
+<style>
+  :root {
+    --bg:#fff; --bg-soft:#f5f8f8; --text:#14191b; --muted:#566268; --line:#e0e6e7; --accent:#0b7285;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:#0b0f11; --bg-soft:#141a1c; --text:#e6ebec; --muted:#93a1a6; --line:#212a2d; --accent:#4bc6d9;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.65}
+  a{color:var(--accent)}
+  .wrap{max-width:820px;margin:0 auto;padding:0 24px}
+  header{padding:56px 0 24px;border-bottom:1px solid var(--line)}
+  .eyebrow{font-family:var(--mono);font-size:13px;color:var(--muted)}
+  h1{font-size:clamp(30px,5vw,42px);margin:12px 0 8px;letter-spacing:-.02em}
+  .lede{color:var(--muted);margin:0 0 20px;max-width:56ch}
+  .release{padding:36px 0;border-bottom:1px solid var(--line)}
+  h2{font-size:24px;margin:0 0 4px;letter-spacing:-.01em}
+  h2 .anchor{color:var(--line);text-decoration:none;font-size:16px}
+  h2:hover .anchor{color:var(--accent)}
+  h3{font-size:15px;margin:24px 0 6px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  p{margin:10px 0}
+  code{font-family:var(--mono);font-size:.9em;background:var(--bg-soft);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+  ul{padding-left:20px} li{margin:6px 0}
+  table{width:100%;border-collapse:collapse;font-size:14.5px;margin:14px 0}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-size:13px}
+  footer{padding:32px 0 64px;color:var(--muted);font-size:14px}
+  footer a{color:var(--muted)}
+  nav{display:flex;gap:14px;font-size:14px;margin-top:14px}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="eyebrow">react-memory-detective</div>
+    <h1>Changelog</h1>
+    <p class="lede">Every release, what changed and why — including the mistakes, because the reasoning is
+    the part worth reading when you are deciding whether to upgrade.</p>
+    <nav>
+      <a href="./">Overview</a>
+      <a href="https://github.com/shubambhasin/react-memory-detective">GitHub</a>
+      <a href="https://www.npmjs.com/package/react-memory-detective">npm</a>
+    </nav>
+  </div>
+</header>
+<main class="wrap">
+<section class="release">
+  <h2 id="v0.1.0">0.1.0 <a class="anchor" href="#v0.1.0">#</a></h2>
+  <p>First release. Dev-time only, zero runtime dependencies, and it refuses to run in a production build. The version says preview and means it: the diagnoses it makes are ones it can defend, and it stays quiet about everything else.</p>
+<h3>Added</h3>
+<ul><li><strong>Feasibility report first</strong> (<a href="docs/FEASIBILITY.md">docs/FEASIBILITY.md</a>), classifying every</li></ul>
+<p>capability before any of it was built. Its central finding shaped the design: the browser memory APIs are the *weakest* signal available — <code>performance.memory</code> is Chrome-only and deliberately quantised, and <code>measureUserAgentSpecificMemory()</code> needs cross-origin isolation most apps do not have. So the resource registry is the spine, and memory figures are supporting evidence.</p>
+<ul><li><strong>Resource registry</strong> pairing creation with release, bounded by construction, holding object</li></ul>
+<p>handles in a <code>WeakMap</code> so tracking a resource can never be the reason it stays alive.</p>
+<ul><li><strong>Timer instrumentation</strong> that distinguishes a fired <code>setTimeout</code> (self-resolved, not a leak and</li></ul>
+<p>not a cleanup) from an uncleared <code>setInterval</code> (never resolves itself).</p>
+<ul><li><strong>Listener instrumentation</strong> detecting the two silent failures of <code>removeEventListener</code>: a</li></ul>
+<p>different function reference, and a different capture flag. Both are stated as fact rather than suspicion, because both references are observed directly.</p>
+<ul><li><strong>Ownership by scope</strong>, not by proximity. A resource created inside a tracked scope is *owned*;</li></ul>
+<p>one created while some component merely happened to be mounted has no owner, and the tool says so.</p>
+<ul><li><strong>Diagnostic engine</strong>, pure and React-free, where confidence is earned by repetition.</li><li><strong>Connections, observers and workers</strong> — WebSocket, EventSource, BroadcastChannel, Worker,</li></ul>
+<p>MutationObserver, ResizeObserver, IntersectionObserver. All seven share one shape (constructed, released by a single method) and one implementation. A socket the *peer* closes is marked self-resolved rather than blamed on the component, and <code>instanceof</code> keeps working so instrumentation cannot change application behaviour.</p>
+<ul><li><strong>False-positive suite</strong> — ten legitimate patterns that a naive detector reports as leaks, each</li></ul>
+<p>of which must stay quiet. It was mutation-tested rather than trusted: one deliberate break was caught, a second was not, and the test that should have caught it turned out to wait long enough for the timer to fire and so never reached the branch it protected. Fixed, and the mutation is now caught.</p>
+<ul><li><strong>Self-leak test</strong>, which immediately found a real bug: <code>maxRecords</code> was captured at construction,</li></ul>
+<p>so configuring it silently did nothing and the cap was always the default.</p>
+<ul><li><strong>Build plugin</strong> for Vite and Babel, and this is what makes the tool usable on code that was not</li></ul>
+<p>written for it. Effects run after render, so at the moment a <code>setInterval</code> is created nothing in the runtime says whose effect is running — a resource created in an ordinary <code>useEffect</code> had no owner, and an unattributed resource is not reported at all, because guessing the nearest mounted component is the behaviour this project exists to avoid. Verified in a browser: with the plugin, the six-component fixture app reports exactly its three real bugs and nothing else; without it, it reported one, unattributed. The compiler stays in the build and is asserted never to reach a runtime bundle.</p>
+<ul><li><strong><code>ownEffect(self, effect)</code></strong>, the runtime half of the plugin, exported for hand-written use.</li><li><strong>Detection suite</strong>: one fixture per resource type with an answer known in advance, plus an</li></ul>
+<p>assertion that no finding ever states a leak as a conclusion.</p>
+<ul><li><strong>Clean-install smoke test</strong> (<code>npm run smoke</code>) that installs the packed tarball into an empty</li></ul>
+<p>project and exercises ESM, CJS, every subpath entry, the plugin, and a type-check under both <code>bundler</code> and <code>node16</code> resolution. It found two packaging bugs on its first run that every test in this repo had passed.</p>
+<h3>Changed</h3>
+<ul><li><strong>One problem is now one finding.</strong> Ten leaking cycles previously produced ten findings, and the</li></ul>
+<p>fixture app accumulated 52 for three bugs — the same unreadable-at-scale mistake the console reporter was already redesigned to avoid. Findings are keyed by component, resource type and source location, and carry an <code>occurrences</code> count. When repetition proves a leak the earlier low-confidence suspicion is dropped rather than listed beside it, and a retained listener that a mismatch already explains is reported once, as the mismatch — the finding that names the fix.</p>
+<ul><li>The build plugin's public types no longer reference <code>@babel/core</code>, so consumers are not forced to</li></ul>
+<p>install <code>@types/babel__core</code> to type-check their own application.</p>
+<h3>Fixed</h3>
+<p>Five of the entries below came from one afternoon pointing this at Excalidraw — a real application — after the test suite was green and the fixture app was perfect. That is the whole argument for the exercise, and it is now a release criterion rather than a good intention.</p>
+<ul><li><strong>The listener mismatch blamed the wrong component.</strong> When <code>removeEventListener</code> matched nothing,</li></ul>
+<p>the stranded listener was assumed to be the first one registered for that event — which in the fixture app was always the right one, because it was the only one. In a real application several listeners share an event, so the finding pointed confidently at a stranger's listener. Attribution now comes from the owner scope of the component actually cleaning up (effect *cleanups* are scoped for this reason), and when it genuinely cannot be determined the mismatch is still reported as a fact with no component named. Guessing was the one thing this tool is not allowed to do.</p>
+<ul><li><strong>StrictMode split one bug into two findings</strong>, one of them unattributed, because a component's</li></ul>
+<p>two registrations for the same event looked ambiguous. They belong to the same component, so the attribution is certain.</p>
+<ul><li><strong><code>memo()</code> and <code>forwardRef()</code> components were skipped entirely</strong> — 14% of all effect call sites in</li></ul>
+<p>Excalidraw, and a component in seven silently unattributed looks exactly like a tool that found nothing. Coverage measured on that codebase went from 77% to 89%.</p>
+<ul><li><strong>The Vite plugin did not type-check inside a real config</strong>, and the source map it returned was</li></ul>
+<p>genuinely malformed: Babel allows <code>file: null</code> and readonly arrays where Rollup does not, so the map is now rebuilt rather than passed through. Any project that type-checks its <code>vite.config.ts</code> — Excalidraw does — could not add the plugin at all.</p>
+<ul><li><strong>Dev-server paths made findings unreadable.</strong> Vite serves monorepo files under <code>/@fs/</code> and adds a</li></ul>
+<p><code>?t=</code> cache-busting query, so one file appeared as two and each source line was a paragraph.</p>
+<ul><li><strong>"Illegal invocation" in a real browser.</strong> Patched timer globals were called without their</li></ul>
+<p>receiver; jsdom tolerates this and Chrome does not, so the whole fixture app failed to start while every test stayed green. This is the second project where only real-browser contact caught a class of bug that fixtures could not.</p>
+<ul><li>A memory sample carrying no bytes reported the API it had detected rather than <code>unavailable</code>,</li></ul>
+<p>which implied a figure existed and had merely been omitted.</p>
+</section>
+</main>
+<footer>
+  <div class="wrap">Generated from <a href="https://github.com/shubambhasin/react-memory-detective/blob/main/CHANGELOG.md">CHANGELOG.md</a> at deploy time.</div>
+</footer>
+</body>
+</html>

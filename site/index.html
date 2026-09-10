@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>React Memory Detective — find what your components forgot to clean up</title>
+<meta name="description" content="A development-time React tool that finds listeners, timers, sockets and observers that outlive the component that created them — attributed to the component, with evidence and a confidence level. It never claims a leak.">
+<meta property="og:title" content="React Memory Detective">
+<meta property="og:description" content="Find what your React components forgot to clean up — attributed to the component, with evidence, never overclaimed.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧹</text></svg>">
+<style>
+  :root {
+    --bg: #ffffff; --bg-soft: #f5f8f8; --panel: #0c1214; --panel-text: #d3dde0;
+    --text: #14191b; --muted: #566268; --line: #e0e6e7;
+    --accent: #0b7285; --accent-soft: #e3f2f4; --accent-ink: #ffffff;
+    --red: #c34534; --amber: #a8761a; --green: #1c7a55;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0b0f11; --bg-soft: #141a1c; --panel: #05090a; --panel-text: #ccd7da;
+      --text: #e6ebec; --muted: #93a1a6; --line: #212a2d;
+      /* Dark-mode accent is light, so its text has to be dark: white on it
+         measures 2.02:1, which fails WCAG AA. Dark ink measures 9.52:1. */
+      --accent: #4bc6d9; --accent-soft: #10262b; --accent-ink: #0b0f11;
+      --red: #ff8f7f; --amber: #e6b45a; --green: #62d3a4;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  a { color: var(--accent); }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 0 24px; }
+  header { padding: 72px 0 40px; border-bottom: 1px solid var(--line); }
+  .eyebrow { font-family: var(--mono); font-size: 13px; color: var(--muted); letter-spacing: .04em; }
+  h1 { font-size: clamp(34px, 6vw, 52px); line-height: 1.1; margin: 14px 0 8px; letter-spacing: -0.02em; }
+  h1 em { font-style: normal; color: var(--accent); }
+  .tagline { font-size: clamp(18px, 2.6vw, 22px); color: var(--muted); margin: 0 0 28px; max-width: 44ch; }
+  .cta { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .btn { display: inline-block; padding: 9px 16px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 15px; border: 1px solid var(--line); color: var(--text); background: var(--bg-soft); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .badges { margin-top: 20px; display: flex; gap: 8px; flex-wrap: wrap; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .badge { border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; }
+  section { padding: 48px 0; border-bottom: 1px solid var(--line); }
+  h2 { font-size: 26px; letter-spacing: -0.01em; margin: 0 0 6px; }
+  h3 { font-size: 17px; margin: 28px 0 8px; }
+  .sub { color: var(--muted); margin: 0 0 22px; max-width: 68ch; }
+  pre { background: var(--panel); color: var(--panel-text); padding: 16px 18px; border-radius: 10px; overflow-x: auto; font-family: var(--mono); font-size: 13px; line-height: 1.6; margin: 0 0 16px; }
+  code { font-family: var(--mono); font-size: .93em; }
+  p code, li code, td code { background: var(--bg-soft); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+  .cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 760px) { .cmp { grid-template-columns: 1fr; } }
+  .cmp > div { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .cmp h4 { margin: 0; padding: 10px 14px; font-size: 13px; font-family: var(--mono); font-weight: 600; background: var(--bg-soft); border-bottom: 1px solid var(--line); color: var(--muted); }
+  .cmp pre { border-radius: 0; margin: 0; height: 100%; }
+  .dim { color: var(--muted); }
+  .red { color: var(--red); } .amber { color: var(--amber); } .green { color: var(--green); }
+  table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 13px; }
+  ul { padding-left: 20px; } li { margin: 6px 0; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  @media (max-width: 760px) { .grid3, .grid2 { grid-template-columns: 1fr; } }
+  .card { border: 1px solid var(--line); border-radius: 10px; padding: 16px; background: var(--bg-soft); }
+  .card b { display: block; margin-bottom: 4px; }
+  .card span { color: var(--muted); font-size: 14.5px; }
+  .note { border-left: 3px solid var(--amber); background: var(--bg-soft); padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 20px 0; }
+  .note.good { border-left-color: var(--green); }
+  .steps { counter-reset: step; }
+  .step { position: relative; padding-left: 44px; margin: 26px 0; }
+  .step::before { counter-increment: step; content: counter(step); position: absolute; left: 0; top: 0; width: 28px; height: 28px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-family: var(--mono); font-size: 14px; font-weight: 700; display: grid; place-items: center; }
+  .step h3 { margin: 2px 0 8px; }
+  .stat { font-family: var(--mono); font-size: 28px; color: var(--accent); display: block; line-height: 1.2; }
+  .flow { font-family: var(--mono); font-size: 13.5px; color: var(--muted); background: var(--bg-soft); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; overflow-x: auto; }
+  .flow b { color: var(--text); font-weight: 600; }
+  .copy { border: 1px solid var(--line); background: var(--bg-soft); color: var(--muted); font-family: var(--mono); font-size: 12px; border-radius: 6px; padding: 3px 9px; cursor: pointer; }
+  .copy:hover { color: var(--accent); border-color: var(--accent); }
+  .cmdrow { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .cmdrow pre { margin: 0; flex: 1; }
+  footer { padding: 40px 0 64px; color: var(--muted); font-size: 14px; }
+  footer a { color: var(--muted); }
+  footer .cols { display: flex; gap: 32px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="eyebrow">react-memory-detective</div>
+    <h1>Find what your components <em>forgot to clean up</em>.</h1>
+    <p class="tagline">Listeners, timers, sockets and observers that outlive the component that made them — named, attributed, and never overclaimed.</p>
+    <div class="cta">
+      <a class="btn primary" href="https://www.npmjs.com/package/react-memory-detective">Install from npm</a>
+      <a class="btn" href="https://github.com/shubambhasin/react-memory-detective">GitHub</a>
+      <a class="btn" href="https://github.com/shubambhasin/react-memory-detective/blob/main/docs/GUIDE.md">Guide</a>
+      <a class="btn" href="./changelog.html">Changelog</a>
+    </div>
+    <div class="badges">
+      <span class="badge">v0.1.0</span>
+      <span class="badge">0 runtime dependencies</span>
+      <span class="badge">9.4 KB gzip</span>
+      <span class="badge">published with provenance</span>
+      <span class="badge">MIT</span>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<section>
+  <div class="wrap">
+    <h2>The gap it fills</h2>
+    <p class="sub">Chrome DevTools can tell you an object is still retained. It cannot tell you which component
+      created it, in which effect, or that the matching <code>clearInterval</code> was never called. This connects
+      the four things the browser keeps separate:</p>
+    <div class="flow"><b>React component</b> &nbsp;→&nbsp; <b>the effect that ran</b> &nbsp;→&nbsp; <b>the resource it created</b> &nbsp;→&nbsp; <b>whether it was ever released</b></div>
+
+    <div class="cmp" style="margin-top:24px">
+      <div>
+        <h4>What a heap profiler gives you</h4>
+        <pre>Heap: 142 MB
+Detached DOM tree
+(array) × 3,481
+Retainers: closure → closure → …</pre>
+      </div>
+      <div>
+        <h4>What this gives you</h4>
+        <pre>▲ ChatPanel unmounted, but 1 × websocket
+  created by it is still active.
+
+Component:   ChatPanel
+Confidence:  high
+  • Still active: 1 × websocket.
+  •   wss://chat.example.com
+      src/ChatPanel.tsx:47:12
+  • Every one of 20 cycles left it behind.
+Next step:   close the socket in the
+  effect's cleanup.</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Set-up is two steps</h2>
+    <p class="sub">Dev-time only. It refuses to run in a production build, and the compiler stays in your bundler —
+      never in your bundle.</p>
+
+    <div class="steps">
+      <div class="step">
+        <h3>Install</h3>
+        <div class="cmdrow">
+          <pre id="cmd">npm install --save-dev react-memory-detective</pre>
+          <button class="copy" data-for="cmd">copy</button>
+        </div>
+      </div>
+
+      <div class="step">
+        <h3>Add the build plugin, then initialise</h3>
+        <p class="sub" style="margin-bottom:14px">The plugin is what attributes resources to components. Skip it and
+          the tool still tracks everything, but cannot tell you whose it is — see
+          <a href="#why-plugin">why</a>.</p>
+        <div class="cmp">
+          <div>
+            <h4>vite.config.ts</h4>
+            <pre>import { memoryDetective } from
+  "react-memory-detective/vite";
+
+export default defineConfig({
+  plugins: [memoryDetective(), react()],
+});</pre>
+          </div>
+          <div>
+            <h4>babel.config.js — Next, CRA, Metro</h4>
+            <pre>module.exports = {
+  plugins: [
+    process.env.NODE_ENV !== "production" &&
+      "react-memory-detective/babel",
+  ].filter(Boolean),
+};</pre>
+          </div>
+        </div>
+        <pre>// main.tsx
+import { init } from "react-memory-detective";
+if (process.env.NODE_ENV !== "production") init();</pre>
+        <p class="dim" style="font-size:14.5px;margin:0">That is the whole setup. Mount and unmount a screen a few
+          times and findings appear in the console.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>It will never print “MEMORY LEAK DETECTED”</h2>
+    <p class="sub">Garbage collection is not observable from a page. A resource still alive after unmount is
+      <em>evidence of retention</em>, not proof of a leak — so every finding carries a confidence level, and
+      confidence is earned by repetition rather than asserted.</p>
+    <table>
+      <thead><tr><th>What was observed</th><th>Confidence</th></tr></thead>
+      <tbody>
+        <tr><td>One resource outlived one unmount</td><td class="dim">low — quite possibly an async close mid-flight</td></tr>
+        <tr><td>Several mount/unmount cycles left resources behind</td><td class="amber">medium</td></tr>
+        <tr><td>Every one of N cycles did</td><td class="green">high</td></tr>
+        <tr><td><code>removeEventListener</code> called with the wrong function</td><td class="red"><b>high immediately</b> — the mechanism is certain</td></tr>
+      </tbody>
+    </table>
+    <p class="sub" style="margin-top:20px">That last row is the exception, because no inference is involved. A cleanup like</p>
+    <pre>return () => window.removeEventListener("resize", () => handler());</pre>
+    <p class="sub">removes nothing at all — <code>removeEventListener</code> only detaches when the function reference,
+      event type and capture flag all match. Both references pass through the instrumentation, so this is reported as
+      fact. The wrong-capture-flag variant is caught separately, because it needs a different fix.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>What it found in a real application</h2>
+    <p class="sub">Before release it was pointed at <a href="https://github.com/excalidraw/excalidraw">Excalidraw</a>,
+      with a leak planted in one real component. The numbers below are that run.</p>
+
+    <div class="grid3" style="margin-bottom:26px">
+      <div class="card"><span class="stat">229</span><span>live resources at rest, in a real app</span></div>
+      <div class="card"><span class="stat">2</span><span>findings — exactly the two planted bugs</span></div>
+      <div class="card"><span class="stat">0</span><span>findings once the plant was removed</span></div>
+    </div>
+
+    <pre>▲ ColorPickerComponent unmounted, but 2 × interval, 2 × event-listener created by it are still active.
+
+Component:   ColorPickerComponent
+Confidence:  high
+  • ColorPickerComponent unmounted, and 4 resources created by it are still active more than 1500ms later.
+  • Still active: 2 × interval, 2 × event-listener.
+  •   setInterval(1000ms) — created at packages/excalidraw/components/ColorPicker/ColorPicker.tsx:275:5
+  •   resize on window   — created at packages/excalidraw/components/ColorPicker/ColorPicker.tsx:279:12
+  • Every one of 12 mount/unmount cycles left resources behind. That is a pattern, not a race.
+  • Garbage collection cannot be observed from a page, so this is retention evidence, not proof of a leak.</pre>
+    <p class="dim" style="font-size:14px">Absolute monorepo paths shortened above for width. Twelve cycles of the
+      unmodified app produced nothing at all; remove the planted leak and it returns to silence.</p>
+
+    <div class="note">
+      <b>The same exercise found five defects in this package</b> — after the suite was green and its own fixture app
+      behaved perfectly. The worst: a mismatch finding that blamed the <em>first</em> listener registered for an event
+      rather than the one actually stranded. The fixture app had one listener per event, so it was always right; real
+      applications have several. Fixtures agree with their author, which is why running against real code is a
+      release criterion here rather than a good intention.
+      <a href="./changelog.html">The full list is in the changelog.</a>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>What it watches</h2>
+    <p class="sub">All of it instrumented globally, with every patched global restored on <code>shutdown()</code>.</p>
+    <div class="grid3">
+      <div class="card"><b>Timers</b><span><code>setTimeout</code>, <code>setInterval</code>, animation frames, idle callbacks</span></div>
+      <div class="card"><b>Listeners</b><span>every <code>addEventListener</code>, including the two silent failures of removal</span></div>
+      <div class="card"><b>Connections</b><span>WebSocket, EventSource, BroadcastChannel, Worker</span></div>
+      <div class="card"><b>Observers</b><span>Mutation, Resize, Intersection</span></div>
+      <div class="card"><b>Requests</b><span><code>fetch</code> — settled, aborted, or still in flight</span></div>
+      <div class="card"><b>Anything else</b><span><code>useTrackedResource</code>, where <code>cleanup</code> is a required argument</span></div>
+    </div>
+
+    <h3 id="why-plugin">Why a build step</h3>
+    <p class="sub">Effects run after render, so at the moment a <code>setInterval</code> is created there is nothing in
+      the runtime that says whose effect is running. Without the plugin a resource created in an ordinary
+      <code>useEffect</code> has no owner — it is still tracked, but it is never blamed on a component, because
+      picking whichever component happened to be mounted is the guesswork this tool exists to avoid. The plugin runs
+      each component's effect bodies inside that component's scope.</p>
+
+    <table>
+      <thead><tr><th>Where the effect lives</th><th>Attributed</th></tr></thead>
+      <tbody>
+        <tr><td>A plain function component</td><td class="green">yes</td></tr>
+        <tr><td><code>memo(…)</code>, <code>forwardRef(…)</code>, and the two nested</td><td class="green">yes</td></tr>
+        <tr><td>A custom hook (<code>useSomething</code>)</td><td class="red">no</td></tr>
+        <tr><td>A class component's <code>componentDidMount</code></td><td class="red">no</td></tr>
+      </tbody>
+    </table>
+    <p class="dim" style="font-size:14.5px;margin-top:12px">Measured on Excalidraw — 218 component files, 111 effect
+      call sites — the plugin instruments <b>89%</b> of them. The custom-hook gap is the one worth knowing about:
+      closing it needs the owner captured during render rather than during the effect, and that is not in 0.1.0.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>One problem is one finding</h2>
+    <p class="sub">Ten leaking cycles of one interval are one finding seen ten times, not ten findings. An early
+      version produced 52 findings for three bugs — unreadable exactly when it matters most.</p>
+    <div class="grid2">
+      <div class="card"><b>Keyed by problem</b><span>Component, resource type and source location — with an
+        <code>occurrences</code> count rather than a growing list.</span></div>
+      <div class="card"><b>Superseded, not stacked</b><span>When repetition proves a leak, the earlier
+        low-confidence suspicion is dropped rather than listed beside it.</span></div>
+      <div class="card"><b>One cause, one report</b><span>A retained listener that a mismatch already explains is
+        reported once — as the mismatch, which is the finding that names the fix.</span></div>
+      <div class="card"><b>Silent when clean</b><span>Nothing actionable means no output. A tool that cries wolf is
+        uninstalled after the second false alarm.</span></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Honest about memory</h2>
+    <p class="sub">The megabyte counter is the <b>weakest</b> signal here, and the design says so.</p>
+    <ul>
+      <li><code>performance.memory</code> is Chrome and Edge only, non-standard, and deliberately quantised.</li>
+      <li><code>measureUserAgentSpecificMemory()</code> needs the page to be cross-origin isolated (COOP + COEP), which most applications are not.</li>
+      <li>Firefox and Safari have neither.</li>
+    </ul>
+    <p class="sub">So the <b>resource registry is the spine</b>. “This component created a <code>setInterval</code> and
+      no <code>clearInterval</code> was ever observed for that handle” is exact, universal, and needs no memory API.
+      Where a figure is available it is reported as supporting evidence; where it is not, the tool says so and carries
+      on. A sample with no bytes reports <code>unavailable</code> rather than naming an API, because implying a figure
+      exists and was withheld would be its own small dishonesty.</p>
+    <p class="sub"><a href="https://github.com/shubambhasin/react-memory-detective/blob/main/docs/FEASIBILITY.md">The
+      feasibility report</a> classifies every capability as reliable, inferred, or impossible — and it was written
+      before any of the code.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Why you can trust the output</h2>
+    <div class="grid2">
+      <div class="card"><b>Ownership is claimed, never guessed</b><span>A resource created inside a tracked scope is
+        owned. One created while some component merely happened to be mounted has no owner, and the tool says so.</span></div>
+      <div class="card"><b>The tool must not be the leak</b><span>Object handles live in a <code>WeakMap</code>,
+        records are bounded and evicted released-first, and there is a dedicated test across 100,000 resource
+        events.</span></div>
+      <div class="card"><b>StrictMode handled first, not last</b><span>Its simulated unmount produces exactly the
+        shape a leak detector looks for. Without special handling, every component in every StrictMode app would be
+        reported.</span></div>
+      <div class="card"><b>A fired <code>setTimeout</code> is not a leak</b><span>It released itself. Conflating that
+        with an uncleared <code>setInterval</code> would bury the findings that matter.</span></div>
+      <div class="card"><b>Nothing leaves the browser</b><span>No telemetry, no network, no storage — which matters
+        more than usual here, because memory debugging touches tokens and user data.</span></div>
+      <div class="card"><b>Released from CI, with provenance</b><span>Never from a laptop. A guard inspects the packed
+        tarball and refuses to publish if the manifest drifts or any runtime dependency appears.</span></div>
+    </div>
+    <div class="note good">
+      <b>Known limitations, written down rather than discovered by you:</b> effects inside custom hooks and class
+      components are not attributed — tracked, but not blamed on a component. Retention is what is observable from a
+      page; collection is not. And memory figures are supporting evidence, never the finding.
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="cols">
+      <div>
+        <b style="color:var(--text)">react-memory-detective</b><br>
+        v0.1.0 · MIT · zero runtime dependencies
+      </div>
+      <div>
+        <a href="https://www.npmjs.com/package/react-memory-detective">npm</a> ·
+        <a href="https://github.com/shubambhasin/react-memory-detective">GitHub</a> ·
+        <a href="./changelog.html">Changelog</a>
+      </div>
+      <div>
+        <a href="https://github.com/shubambhasin/react-memory-detective/blob/main/docs/GUIDE.md">Guide</a> ·
+        <a href="https://github.com/shubambhasin/react-memory-detective/blob/main/docs/API.md">API</a> ·
+        <a href="https://github.com/shubambhasin/react-memory-detective/blob/main/docs/FEASIBILITY.md">Feasibility</a> ·
+        <a href="https://github.com/shubambhasin/react-memory-detective/blob/main/docs/RELEASE-CRITERIA.md">Release criteria</a>
+      </div>
+    </div>
+    <p style="margin-top:24px">A sibling of
+      <a href="https://shubambhasin.github.io/react-render-detective/">react-render-detective</a>, which answers why a
+      component rendered.</p>
+  </div>
+</footer>
+
+<script>
+  // Progressive enhancement only: the command is selectable without this.
+  for (const button of document.querySelectorAll(".copy")) {
+    button.addEventListener("click", async () => {
+      const target = document.getElementById(button.dataset.for);
+      try {
+        await navigator.clipboard.writeText(target.textContent.trim());
+        button.textContent = "copied";
+        setTimeout(() => (button.textContent = "copy"), 1600);
+      } catch {
+        // Clipboard access can be denied outright. Select the command instead,
+        // so the fallback is still one keystroke rather than a dead end.
+        const range = document.createRange();
+        range.selectNodeContents(target);
+        const selection = getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        button.textContent = "press ⌘C";
+        setTimeout(() => (button.textContent = "copy"), 2400);
+      }
+    });
+  }
+</script>
+
+</body>
+</html>

@@ -196,23 +196,32 @@ function renderPage(all) {
     )
     .join("\n");
 
+  /*
+   * Keep this page visually the sibling of site/index.html. Both of these were
+   * copied wholesale from the other project once and still said its name, so
+   * the human name is derived rather than typed.
+   */
+  const humanName = pkg.name.split("-").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
+  const FAVICON = "🧹";
+  const ACCENT = { light: "#0b7285", dark: "#4bc6d9" };
+
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Changelog — React Render Detective</title>
+<title>Changelog — ${humanName}</title>
 <meta name="description" content="Every release of ${pkg.name}, what changed and why.">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔍</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>${FAVICON}</text></svg>">
 <style>
   :root {
-    --bg:#fff; --bg-soft:#f6f7f9; --text:#16181d; --muted:#5b6472; --line:#e3e6ea; --accent:#2f6df6;
+    --bg:#fff; --bg-soft:#f5f8f8; --text:#14191b; --muted:#566268; --line:#e0e6e7; --accent:${ACCENT.light};
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg:#0c0e12; --bg-soft:#14171d; --text:#e6e9ee; --muted:#98a2b3; --line:#232833; --accent:#6f9bff;
+      --bg:#0b0f11; --bg-soft:#141a1c; --text:#e6ebec; --muted:#93a1a6; --line:#212a2d; --accent:${ACCENT.dark};
     }
   }
   *{box-sizing:border-box}
